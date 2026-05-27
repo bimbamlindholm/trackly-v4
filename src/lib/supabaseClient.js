@@ -1,4 +1,10 @@
+import { createClient } from "@supabase/supabase-js";
 import { defaultPermissions } from "../utils/permissions";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+
+export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 const DB_KEY = "trackly_local_db_v4";
 
@@ -198,15 +204,17 @@ function getCurrentUser() {
   return readDb().users.find((u) => u.id === id) || null;
 }
 
-export const supabaseConfigured = false;
-export const supabase = {
+export const realSupabase = supabaseConfigured ? createClient(supabaseUrl, supabaseAnonKey) : null;
+
+const localMockSupabase = {
   from(table) { return new LocalQuery(table); },
   auth: {
     async getSession() {
       const user = getCurrentUser();
       return { data: { session: user ? { user } : null }, error: null };
     },
-    onAuthStateChange() {
+    onAuthStateChange(callback) {
+      // Mock listener that returns an unsubscribe function
       return { data: { subscription: { unsubscribe() {} } } };
     },
     async signInWithPassword({ email, password }) {
@@ -239,11 +247,19 @@ export const supabase = {
       writeDb(db);
       return { data: { user: db.users[idx] }, error: null };
     },
-    async signInWithOAuth() { return { error: new Error("OAuth is disabled in pure-local mode. Use email/password demo accounts.") }; },
+    async signInWithOAuth({ provider, options }) {
+      // Direct redirect to live Supabase Google Auth if configured
+      if (supabaseConfigured && realSupabase) {
+        return realSupabase.auth.signInWithOAuth({ provider, options });
+      }
+      return { error: new Error("OAuth is disabled in pure-local mode. Use email/password demo accounts.") };
+    },
     async linkIdentity() { return { error: new Error("OAuth linking is disabled in pure-local mode.") }; },
     async unlinkIdentity() { return { error: null }; },
   },
 };
+
+export const supabase = supabaseConfigured ? realSupabase : localMockSupabase;
 
 export function requireSupabase() {
   return supabase;

@@ -385,6 +385,10 @@ export default function EmployeeDashboardPage() {
   const [syncingOffline, setSyncingOffline] = useState(false);
   const [isOfflineState, setIsOfflineState] = useState(!navigator.onLine);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [lastSyncedTime, setLastSyncedTime] = useState(() => {
+    return localStorage.getItem(`trackly_last_synced_${profile?.id}`) || "";
+  });
+  const [syncError, setSyncError] = useState("");
 
   // Synchronize dynamic online/offline browser state
   useEffect(() => {
@@ -425,6 +429,7 @@ export default function EmployeeDashboardPage() {
     if (queue.length === 0) return;
 
     setSyncingOffline(true);
+    setSyncError("");
     addToast(`Syncing ${queue.length} pending offline actions...`, "info");
 
     let successCount = 0;
@@ -451,7 +456,10 @@ export default function EmployeeDashboardPage() {
         failCount++;
         // Prevent further pushes if we lost connection mid-sync
         if (!navigator.onLine || err.message?.toLowerCase().includes("fetch")) {
+          setSyncError("Network lost mid-sync. Will auto-retry once stable.");
           break;
+        } else {
+          setSyncError(err.message || "Failed to sync some actions.");
         }
       }
     }
@@ -461,6 +469,9 @@ export default function EmployeeDashboardPage() {
     await loadAttendance();
 
     if (successCount > 0) {
+      const timeStr = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" });
+      localStorage.setItem(`trackly_last_synced_${profile.id}`, timeStr);
+      setLastSyncedTime(timeStr);
       addToast(`Successfully synced ${successCount} offline action(s)!`, "success");
     }
     if (failCount > 0) {
@@ -886,17 +897,53 @@ export default function EmployeeDashboardPage() {
             }}
           />
 
-          {isOfflineState && (
-            <div className="relative z-[99] bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-amber-500/20 border-y border-amber-500/30 text-amber-200 text-center py-2.5 text-xs font-black flex items-center justify-center gap-2 animate-pulse">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_#f59e0b]"></span>
-              Offline Mode Active &bull; DTR clock actions are saved locally and will auto-sync when network is restored.
+          {(isOfflineState || pendingSyncCount > 0) && (
+            <div className={`relative z-[99] border-y py-2.5 text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-3 px-4 ${
+              isOfflineState 
+                ? "bg-gradient-to-r from-amber-500/20 via-orange-500/10 to-amber-500/20 border-amber-500/30 text-amber-200"
+                : "bg-gradient-to-r from-emerald-500/20 via-teal-500/10 to-emerald-500/20 border-emerald-500/30 text-emerald-200"
+            }`}>
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                <span className={`inline-block h-2.5 w-2.5 rounded-full ${
+                  isOfflineState 
+                    ? "bg-amber-400 shadow-[0_0_10px_#f59e0b] animate-pulse" 
+                    : "bg-emerald-400 shadow-[0_0_10px_#10b981]"
+                }`}></span>
+                <span className="tracking-wide">
+                  {isOfflineState ? (
+                    <span><strong>Offline Mode Active</strong> &bull; Clock actions will auto-sync once connected.</span>
+                  ) : (
+                    <span><strong>Online Connected</strong> &bull; Network connection restored.</span>
+                  )}
+                  {pendingSyncCount > 0 && (
+                    <span className="ml-1.5 px-2 py-0.5 rounded bg-white/10 text-white font-bold">
+                      {pendingSyncCount} pending action(s)
+                    </span>
+                  )}
+                  {lastSyncedTime && (
+                    <span className="ml-1.5 text-slate-300">
+                      • Last synced: {lastSyncedTime}
+                    </span>
+                  )}
+                </span>
+                {syncError && (
+                  <span className="text-rose-300 font-bold bg-rose-500/20 border border-rose-500/30 rounded px-2.5 py-0.5 ml-2 animate-bounce">
+                    ⚠️ {syncError}
+                  </span>
+                )}
+              </div>
+              
               {pendingSyncCount > 0 && (
                 <button 
                   onClick={handleSyncOfflineEvents}
-                  disabled={syncingOffline}
-                  className="ml-3 rounded-full bg-amber-500/20 border border-amber-400/40 px-3 py-1 text-[10px] uppercase font-black text-amber-100 transition hover:bg-amber-500/40 active:scale-95 disabled:opacity-50"
+                  disabled={syncingOffline || isOfflineState}
+                  className={`rounded-full border px-4 py-1 text-[10px] uppercase font-black tracking-wider transition active:scale-95 disabled:opacity-50 ${
+                    isOfflineState
+                      ? "bg-amber-500/10 border-amber-400/30 text-amber-200 cursor-not-allowed"
+                      : "bg-emerald-500/30 border-emerald-400/50 text-emerald-100 hover:bg-emerald-500/50"
+                  }`}
                 >
-                  {syncingOffline ? "Syncing..." : `Sync ${pendingSyncCount} Now`}
+                  {syncingOffline ? "Syncing..." : isOfflineState ? "Waiting for network..." : "Sync / Retry Now"}
                 </button>
               )}
             </div>
