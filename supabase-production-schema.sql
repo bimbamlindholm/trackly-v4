@@ -449,6 +449,7 @@ alter table public.audit_logs enable row level security;
 -- Drop all standard security policies for fresh deploy
 drop policy if exists "allow_profile_select" on public.profiles;
 drop policy if exists "allow_profile_update" on public.profiles;
+drop policy if exists "allow_profile_insert" on public.profiles;
 drop policy if exists "allow_workspace_select" on public.workspaces;
 drop policy if exists "allow_workspace_insert" on public.workspaces;
 drop policy if exists "allow_workspace_update" on public.workspaces;
@@ -463,6 +464,9 @@ drop policy if exists "allow_schedules_all_for_admins" on public.schedules;
 -- RLS: PROFILES
 create policy "allow_profile_select" on public.profiles 
   for select to authenticated using (id = auth.uid() or public.share_workspace(auth.uid(), id));
+
+create policy "allow_profile_insert" on public.profiles 
+  for insert to authenticated with check (id = auth.uid());
 
 create policy "allow_profile_update" on public.profiles 
   for update to authenticated using (id = auth.uid());
