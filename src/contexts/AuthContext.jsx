@@ -728,6 +728,20 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginWithFacebook = async () => {
+    if (supabaseConfigured) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "facebook",
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) throw error;
+    } else {
+      throw new Error("OAuth is disabled in pure-local mode. Use email/password demo accounts.");
+    }
+  };
+
   const disabledOAuth = async () => { throw new Error("OAuth is disabled in this pure-local build. Use email/password, then connect Supabase OAuth later."); };
   
   const updatePassword = async (newPassword) => {
@@ -745,7 +759,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => ({
     currentUser: user, getRedirectPathByRole, loading, login, logout, membership, permissions, profile, refreshSessionData: async () => supabaseConfigured ? (user ? hydrateReal(user) : null) : hydrateLocal(preferredRole), registerAdmin, registerEmployee, registerPersonal,
     role, supabaseConfigured, updatePermissions, updateProfile, updateWorkspace, user, validateWorkspaceCode, workspace, workspaces, switchWorkspace,
-    loginWithGoogle, linkGoogleIdentity: disabledOAuth, unlinkGoogleIdentity: disabledOAuth, loginWithFacebook: disabledOAuth, linkFacebookIdentity: disabledOAuth, unlinkFacebookIdentity: disabledOAuth,
+    loginWithGoogle, linkGoogleIdentity: disabledOAuth, unlinkGoogleIdentity: disabledOAuth, loginWithFacebook, linkFacebookIdentity: disabledOAuth, unlinkFacebookIdentity: disabledOAuth,
     completeGoogleRegistration: disabledOAuth, connectPersonalAccountToWorkspace, disconnectFromWorkspace, updatePassword,
   }), [user, profile, workspace, workspaces, membership, permissions, loading, role, preferredRole]);
 
